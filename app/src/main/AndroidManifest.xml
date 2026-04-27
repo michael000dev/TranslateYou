@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Allow manifest merger to accept the SDK's higher minSdk; we guard at runtime -->
+    <uses-sdk tools:overrideLibrary="com.ai_model_hub.sdk" />
+
     <!-- Internet permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -102,5 +105,7 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+
+        <package android:name="com.ai_model_hub" />
     </queries>
 </manifest>

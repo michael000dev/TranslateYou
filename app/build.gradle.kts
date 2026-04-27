@@ -101,4 +101,9 @@ dependencies {
 
     // Dynamic color scheme
     implementation("com.google.android.material:material:1.12.0")
+
+    // AiModelHub on-device AI translation
+    implementation("com.ai_model_hub:sdk:0.1.6") {
+        exclude(group = "androidx.core")
+    }
 }

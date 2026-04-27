@@ -12,6 +12,14 @@ dependencyResolutionManagement {
         mavenCentral()
         // used for OCR
         maven { setUrl("https://jitpack.io") }
+        // AiModelHub SDK
+        maven {
+            url = uri("https://maven.pkg.github.com/alex-80/AiModelHub")
+            credentials {
+                username = providers.gradleProperty("gpr.user").orNull
+                password = providers.gradleProperty("gpr.key").orNull
+            }
+        }
     }
 }
 rootProject.name = "Translate You"
