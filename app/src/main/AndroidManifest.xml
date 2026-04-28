@@ -11,6 +11,9 @@
     <!-- Voice recognition as input -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
+    <!-- Required to bind to AiModelHubService -->
+    <uses-permission android:name="com.ai_model_hub.permission.BIND_SERVICE" />
+
     <application
         android:name=".App"
         android:allowBackup="true"
@@ -107,5 +110,10 @@
         </intent>
 
         <package android:name="com.ai_model_hub" />
+        <!-- Declare the service action so bindService visibility checks pass on OEM ROMs that require an explicit <intent> query in addition to
+             the <package> declaration. -->
+        <intent>
+            <action android:name="com.ai_model_hub.service.AiModelHubService" />
+        </intent>
     </queries>
 </manifest>

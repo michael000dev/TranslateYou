@@ -23,7 +23,10 @@ import com.ai_model_hub.sdk.AiHubClient
 import com.ai_model_hub.sdk.ConnectionState
 import com.ai_model_hub.sdk.ModelAllowlist
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import net.youapps.translation_engines.ApiKeyState
 import net.youapps.translation_engines.EngineSettingsProvider
 import net.youapps.translation_engines.Language
@@ -72,7 +75,12 @@ class AiModelHubEngine(
 
         // Load the model if it is not already loaded
         if (!hub.isModelLoaded(modelName)) {
-            hub.loadModel(modelName)
+            suspendCancellableCoroutine { cont ->
+                hub.loadModel(modelName) { error ->
+                    if (error.isEmpty()) cont.resume(Unit)
+                    else cont.resumeWithException(RuntimeException(error))
+                }
+            }
         }
 
         val sourceName = LANGUAGE_NAMES[source] ?: source

@@ -125,7 +125,7 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
 
     // AiModelHub on-device AI translation
-    implementation("com.ai_model_hub:sdk:0.1.6") {
+    implementation("com.ai_model_hub:sdk:0.1.8") {
         exclude(group = "androidx.core")
     }
 }
