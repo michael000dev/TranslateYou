@@ -22,7 +22,11 @@ import android.os.Build
 import com.ai_model_hub.sdk.AiHubClient
 import com.ai_model_hub.sdk.ConnectionState
 import com.ai_model_hub.sdk.ModelAllowlist
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -99,7 +103,26 @@ class AiModelHubEngine(
         hub.resetSession(modelName)
 
         val result = StringBuilder()
-        hub.sendMessage(modelName, prompt).collect { token -> result.append(token) }
+        coroutineScope {
+            // Watch for service disconnection while generation is in progress.
+            // On OEM devices with aggressive battery optimization, the background AiModelHub
+            // service can be killed mid-generation. When that happens, connectionState
+            // transitions to Disconnected (onServiceDisconnected fires), but the registered
+            // IAiResponseCallback becomes an orphan — onComplete/onError are never called
+            // and collect would hang forever. The watcher cancels the parent scope immediately.
+            val scope = this
+            val watchJob = launch {
+                hub.connectionState.first { it !is ConnectionState.Connected }
+                scope.cancel(
+                    CancellationException("AiModelHub service disconnected during translation.")
+                )
+            }
+            try {
+                hub.sendMessage(modelName, prompt).collect { token -> result.append(token) }
+            } finally {
+                watchJob.cancel()
+            }
+        }
 
         return Translation(translatedText = result.toString().trim())
     }
