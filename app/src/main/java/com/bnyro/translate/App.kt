@@ -18,6 +18,7 @@
 package com.bnyro.translate
 
 import android.app.Application
+import com.ai_model_hub.sdk.AiHubClient
 import com.bnyro.translate.engine.AiModelHubEngine
 import com.bnyro.translate.util.EnginePreferencesProviderImpl
 import com.bnyro.translate.util.Preferences
@@ -41,7 +42,11 @@ class App : Application() {
 
         // initialize all translation engines
         translationEngines = TranslationEngines.getAllEngines(EnginePreferencesProviderImpl()) +
-            listOf(AiModelHubEngine(this, EnginePreferencesProviderImpl()))
+                if (AiHubClient().isServiceAvailable()) listOf(
+                    AiModelHubEngine(
+                        EnginePreferencesProviderImpl()
+                    )
+                ) else emptyList()
         updateAllTranslationEngines()
     }
 

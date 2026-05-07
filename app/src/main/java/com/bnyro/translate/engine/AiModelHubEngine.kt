@@ -17,28 +17,19 @@
 
 package com.bnyro.translate.engine
 
-import android.content.Context
 import android.os.Build
-import com.ai_model_hub.sdk.AiHubClient
-import com.ai_model_hub.sdk.ConnectionState
+import android.util.Log
 import com.ai_model_hub.sdk.ModelAllowlist
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
+import com.ai_model_hub.sdk.functional.TranslateAvailableLanguage
 import net.youapps.translation_engines.ApiKeyState
 import net.youapps.translation_engines.EngineSettingsProvider
 import net.youapps.translation_engines.Language
 import net.youapps.translation_engines.Translation
 import net.youapps.translation_engines.TranslationEngine
 
+private const val TAG = "AiModelHubEngine"
+
 class AiModelHubEngine(
-    private val context: Context,
     settingsProvider: EngineSettingsProvider
 ) : TranslationEngine(settingsProvider) {
 
@@ -47,16 +38,11 @@ class AiModelHubEngine(
     override val urlModifiable = false
     override val apiKeyState = ApiKeyState.DISABLED
 
-    // No auto-detect: the prompt works best when the source language is explicit
-    override val autoLanguageCode: String? = null
+    override val autoLanguageCode = ""
     override val supportedModels = ModelAllowlist.models.map { it.name }
-
-    private var client: AiHubClient? = null
 
     override fun createOrRecreate(): TranslationEngine = apply {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@apply
-        client?.disconnect()
-        client = AiHubClient(context).also { it.connect() }
     }
 
     override suspend fun getLanguages(): List<Language> = SUPPORTED_LANGUAGES
@@ -65,96 +51,50 @@ class AiModelHubEngine(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             throw RuntimeException("AiModelHub requires Android 12 (API 31) or higher.")
         }
-        val hub =
-            client ?: error("AiModelHubEngine not initialized — call createOrRecreate() first")
         val modelName = getSelectedModel() ?: error("No model selected for AiModelHub engine")
-
-        // Wait up to 30 s for the service to connect
-        val connected = withTimeoutOrNull(30_000) {
-            hub.connectionState.first { it is ConnectionState.Connected }
-        } ?: throw RuntimeException(
-            "Could not connect to AiModelHub service. Is the AiModelHub app installed and a model enabled?"
-        )
-        check(connected is ConnectionState.Connected)
-
-        // Load the model if it is not already loaded
-        if (!hub.isModelLoaded(modelName)) {
-            suspendCancellableCoroutine { cont ->
-                hub.loadModel(modelName) { error ->
-                    if (error.isEmpty()) cont.resume(Unit)
-                    else cont.resumeWithException(RuntimeException(error))
-                }
-            }
-        }
 
         val sourceName = LANGUAGE_NAMES[source] ?: source
         val targetName = LANGUAGE_NAMES[target] ?: target
 
-        val prompt = buildString {
-            append("Translate the following text")
-            if (sourceName.isNotBlank()) append(" from $sourceName")
-            append(" to $targetName")
-            appendLine(". Output only the translation, nothing else.")
-            appendLine()
-            append(query)
-        }
+        Log.i(TAG, "Translating with model '$modelName' from '$sourceName' to '$targetName'")
+        val result = com.ai_model_hub.sdk.functional.translate(
+            modelName = modelName,
+            text = query,
+            targetLanguage = targetName,
+            sourceLanguage = sourceName
+        )
 
-        // Reset the session so previous conversation context does not bleed in
-        hub.resetSession(modelName)
-
-        val result = StringBuilder()
-        coroutineScope {
-            // Watch for service disconnection while generation is in progress.
-            // On OEM devices with aggressive battery optimization, the background AiModelHub
-            // service can be killed mid-generation. When that happens, connectionState
-            // transitions to Disconnected (onServiceDisconnected fires), but the registered
-            // IAiResponseCallback becomes an orphan — onComplete/onError are never called
-            // and collect would hang forever. The watcher cancels the parent scope immediately.
-            val scope = this
-            val watchJob = launch {
-                hub.connectionState.first { it !is ConnectionState.Connected }
-                scope.cancel(
-                    CancellationException("AiModelHub service disconnected during translation.")
-                )
-            }
-            try {
-                hub.sendMessage(modelName, prompt).collect { token -> result.append(token) }
-            } finally {
-                watchJob.cancel()
-            }
-        }
-
-        return Translation(translatedText = result.toString().trim())
+        return Translation(translatedText = result.trim())
     }
 
     companion object {
         private val SUPPORTED_LANGUAGES = listOf(
-            Language("zh", "Chinese"),
-            Language("en", "English"),
-            Language("es", "Spanish"),
-            Language("fr", "French"),
-            Language("de", "German"),
-            Language("ja", "Japanese"),
-            Language("ko", "Korean"),
-            Language("pt", "Portuguese"),
-            Language("ru", "Russian"),
-            Language("ar", "Arabic"),
-            Language("it", "Italian"),
-            Language("nl", "Dutch"),
-            Language("pl", "Polish"),
-            Language("sv", "Swedish"),
-            Language("da", "Danish"),
-            Language("fi", "Finnish"),
-            Language("nb", "Norwegian"),
-            Language("tr", "Turkish"),
-            Language("cs", "Czech"),
-            Language("hu", "Hungarian"),
-            Language("ro", "Romanian"),
-            Language("uk", "Ukrainian"),
-            Language("id", "Indonesian"),
-            Language("vi", "Vietnamese"),
-            Language("th", "Thai"),
-            Language("hi", "Hindi"),
+            Language("zh", TranslateAvailableLanguage.CHINESE),
+            Language("en", TranslateAvailableLanguage.ENGLISH),
+            Language("es", TranslateAvailableLanguage.SPANISH),
+            Language("fr", TranslateAvailableLanguage.FRENCH),
+            Language("de", TranslateAvailableLanguage.GERMAN),
+            Language("ja", TranslateAvailableLanguage.JAPANESE),
+            Language("ko", TranslateAvailableLanguage.KOREAN),
+            Language("pt", TranslateAvailableLanguage.PORTUGUESE),
+            Language("ru", TranslateAvailableLanguage.RUSSIAN),
+            Language("ar", TranslateAvailableLanguage.ARABIC),
+            Language("it", TranslateAvailableLanguage.ITALIAN),
+            Language("nl", TranslateAvailableLanguage.DUTCH),
+            Language("pl", TranslateAvailableLanguage.POLISH),
+            Language("sv", TranslateAvailableLanguage.SWEDISH),
+            Language("da", TranslateAvailableLanguage.DANISH),
+            Language("fi", TranslateAvailableLanguage.FINNISH),
+            Language("nb", TranslateAvailableLanguage.NORWEGIAN),
+            Language("tr", TranslateAvailableLanguage.TURKISH),
+            Language("cs", TranslateAvailableLanguage.CZECH),
+            Language("hu", TranslateAvailableLanguage.HUNGARIAN),
+            Language("ro", TranslateAvailableLanguage.ROMANIAN),
+            Language("uk", TranslateAvailableLanguage.UKRAINIAN),
+            Language("id", TranslateAvailableLanguage.INDONESIAN),
+            Language("vi", TranslateAvailableLanguage.VIETNAMESE),
+            Language("th", TranslateAvailableLanguage.THAI),
+            Language("hi", TranslateAvailableLanguage.HINDI),
         )
 
         /** Maps ISO 639-1 codes to full English language names used in the translation prompt. */
