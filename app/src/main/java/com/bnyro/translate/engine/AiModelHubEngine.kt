@@ -19,7 +19,7 @@ package com.bnyro.translate.engine
 
 import android.os.Build
 import android.util.Log
-import com.ai_model_hub.sdk.ModelAllowlist
+import com.ai_model_hub.sdk.AiHubClient
 import com.ai_model_hub.sdk.functional.TranslateAvailableLanguage
 import net.youapps.translation_engines.ApiKeyState
 import net.youapps.translation_engines.EngineSettingsProvider
@@ -33,13 +33,22 @@ class AiModelHubEngine(
     settingsProvider: EngineSettingsProvider
 ) : TranslationEngine(settingsProvider) {
 
+    private val client = AiHubClient()
+
+    init {
+        client.connect()
+    }
+
     override val name = "AiModelHub"
     override val defaultUrl = ""
     override val urlModifiable = false
     override val apiKeyState = ApiKeyState.DISABLED
 
     override val autoLanguageCode = ""
-    override val supportedModels = ModelAllowlist.models.map { it.name }
+    override val supportedModels
+        get() = client.getAvailableModels().map { model ->
+            model.modelId
+        }
 
     override fun createOrRecreate(): TranslationEngine = apply {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@apply
@@ -51,14 +60,14 @@ class AiModelHubEngine(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             throw RuntimeException("AiModelHub requires Android 12 (API 31) or higher.")
         }
-        val modelName = getSelectedModel() ?: error("No model selected for AiModelHub engine")
+        val modelId = getSelectedModel() ?: error("No model selected for AiModelHub engine")
 
         val sourceName = LANGUAGE_NAMES[source] ?: source
         val targetName = LANGUAGE_NAMES[target] ?: target
 
-        Log.i(TAG, "Translating with model '$modelName' from '$sourceName' to '$targetName'")
+        Log.i(TAG, "Translating with model '$modelId' from '$sourceName' to '$targetName'")
         val result = com.ai_model_hub.sdk.functional.translate(
-            modelName = modelName,
+            modelId = modelId,
             text = query,
             targetLanguage = targetName,
             sourceLanguage = sourceName
